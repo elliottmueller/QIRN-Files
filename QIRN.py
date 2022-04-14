@@ -1,5 +1,4 @@
-#Fenfang Wu, GPS Caltech, 2020
-#!env python3
+#Elliott Mueller and Fenfang Wu, GPS Caltech, 2022
 import numpy as np
 from numpy import *
 from tqdm import tqdm
@@ -8,20 +7,12 @@ import pylab as py
 from scipy import integrate
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
-#ratio_naturalC = 0.01121437
 ratio_VPDB=0.01118  #C13/C12
 ratio_naturalC = ratio_VPDB
 abun_C13_natural=ratio_naturalC/(ratio_naturalC+1)  # C13% over total
 abun_C12_natural=1-abun_C13_natural
 
-#delta_labeled = 10000. #per mil
-#ratio_labeled = (delta_labeled/1000+1)*ratio_VPDB
-ratio_labeled= 99.99 #C13/C12
-abun_C13_labeled=ratio_labeled/(ratio_labeled+1)
-abun_C12_labeled =1-abun_C13_labeled
-
-
-def GetProp(conc):
+def GetProp(conc):  #INPUTS: isotopologue abundances for a given molecule OUTPUTS: Array of labelling proportions M, M+1, M+2, etc. where M is the molecular weight. Size = (1 x number of atoms + 1)
     nm=len(conc)
     nC=int(np.log2(nm))
     total=sum(conc)
@@ -36,36 +27,16 @@ def GetProp(conc):
     
     return M/total
     
-    
-
-def write2file(ofile, sname, created, conc_t):
-    nC=int(round(np.log2(len(created))))
-
-    ofile.write("\n{0}: \n Inst amount:  {1} moles  \n".format(sname,sum(created)))          
-    #for iC in range(nC):
-        #ofile.write("C{}:".format(iC+1))
-        #inst_ratio=GetSingleRatio(created,iC)
-        #cumu_ratio=GetSingleRatio(conc_t,iC)
-        #inst_dC=GetDelta(inst_ratio)
-        #cumu_dC=GetDelta(GetSingleRatio(conc_t,iC))
-        #ofile.write("{0:.12f}   {1:.12f}   {2:.3f}     {3:.3f}\n".format(inst_ratio, cumu_ratio, inst_dC,cumu_dC))
-
-
-def siteSpecific(sname, nC,conc):
-    #print(sname)
+def siteSpecific(sname, nC,conc): #INPUTS: sname = name of molecule, nC = number of atoms in molecule, conc = isotopologue abundances for molecule   OUTPUTS: Array containing [name of compound, site specific isotope composition in delta notation relative to the standard ratio defined above.]
     output = [sname]
     for iC in range(nC):
         cumu_ratio=GetSingleRatio(conc,iC)
         cumu_dC=GetDelta(cumu_ratio)
-        #print("C{}: {} ".format(iC+1, cumu_dC))
         output.append("C{}: {} ".format(iC+1, cumu_dC))
     return output
     #print(GetProp(conc))
 
-
-
-       
-def GetSingleRatio(conc, iC):#iC is the labeled C (0,1,2,3,4,5 from left to right)
+def GetSingleRatio(conc, iC):#INPUTS: conc = isotopologue abundances for molecule, iC is the atomic number of interest OUTPUTS: Single isotope ratio value for the atomic site (iC + 1). If iC = 1, the isotope ratio of atomic site 2 will be reported.
     nm=len(conc)
     nC=int(np.log2(nm))
     ib=nC-(iC+1)  #the bit number, 5,4,3,2,1,0 from left to right
@@ -79,11 +50,11 @@ def GetSingleRatio(conc, iC):#iC is the labeled C (0,1,2,3,4,5 from left to righ
     return total_C13/total_C12
     
 
-def GetDelta(ratio): # C delta value
+def GetDelta(ratio): # INPUTS: ratio = isotope ratio OUTPUTS: delta value against reference ratio above ("ratio_VPDB")
     delta=round((ratio/ratio_VPDB-1)*1000*1000)/1000.
     return delta
 
-def Intramolecular(nC,intra_structure,initial):#Get conc for each isotopomer, iC is the labeled C... intrastructure is a vector [C1->C6] in delta permil
+def Intramolecular(nC,intra_structure,initial):#INPUTS: nC = number of carbons in molecule, intra_structure = user defined vector from atomic site 1 to nC with delta values (‰) for each site in the molecule, initial = initial concentration of the molecule. OUTPUTS: conc_t0 = starting isotopologue abundance array based on initial intramolecular composition (size = 1 x 2^nC)
     nm=2**nC
     conc_t0=np.repeat(initial,nm)
     n_C13=np.zeros(nm)
@@ -107,35 +78,10 @@ def Intramolecular(nC,intra_structure,initial):#Get conc for each isotopomer, iC
                 
     return conc_t0
 
-def GetConc(iC,nC):#Get conc for each isotopomer, iC is the labeled C
-    nm=2**nC
-    conc_t0=np.repeat(1.,nm)
-    n_C13=np.zeros(nm)
-    n_C12=np.zeros(nm)
-    abun_C13=0
-    abun_C12=0
-    for im in range(nm):
-        for ib in range(nC-1,-1,-1):#left to right, high bit to low bit
-            if ib==(nC-iC-1):
-                abun_C13 = abun_C13_labeled
-            else:
-                abun_C13 = abun_C13_natural
-            abun_C12 =1-abun_C13
-                       
-            if (im>>ib)&1==1:
-                conc_t0[im] *= abun_C13
-                n_C13[im]+=1
-            else:
-                conc_t0[im]*=abun_C12
-                n_C12[im]+=1
-                
-           
-    #print(sum(conc_t0))
-    return conc_t0
 
-def GetFullRates(nC, singlerates): #single rate is an array with mobsnoisotopic and single suituted rate constants, nC+1 numbers
+def GetFullRates(nC, singlerates): #INPUTS: nC = number of atoms in molecule, singlerates = an array with monoisotopic and single substituted rate constants, defined in the NB file. OUTPUTS: array of reaction rate constants for every isotopologue in a reactant which represents the user-defined fractionation factors.
     if len(singlerates)==1: #no fractionation
-        return np.repeat(singlerates,2**nC)
+        return np.repeat(singlerates,2**nC) # if singlerates (defined
     else:
         nm = 2**nC
         full_rates=np.repeat(1.0, nm)
@@ -153,7 +99,7 @@ def GetFullRates(nC, singlerates): #single rate is an array with mobsnoisotopic 
                 full_rates[im]/=singlerates[0]**(nC13-1)
         return full_rates
 
-def synthesis(conc_a,conc_b,rate_abx): # A + B -> X
+def synthesis(conc_a,conc_b,rate_abx): # A + B -> C, INPUTS: conc_a = isotopologue abundances of Reactant A, conc_b = isotologue abundances of Reactant B, rate_abx = full rates array
     ma = len(conc_a)
     iC=int(np.log2(ma))
     mb = len(conc_b)
@@ -261,14 +207,6 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
                 conc = Intramolecular(nC,structure,initial)
                 conc_init = Intramolecular(nC,structure,initial)
                 
-                #conc=GetConc(-1,nC)
-                
-                #if name=='3-phosphoglycerate':
-                   # conc=GetConc(-1,nC)
-                   # conc_3PGA[:] = conc
-                #if name =='glyoxylate':
-                 #   conc=GetConc(1,nC)
-                  #  conc_glyoxylate[:] = conc
             else:
                 conc=np.zeros(2**nC)
                 conc_init = np.zeros(2**nC)
