@@ -99,21 +99,21 @@ def GetFullRates(nC, singlerates): #INPUTS: nC = number of atoms in molecule, si
                 full_rates[im]/=singlerates[0]**(nC13-1)
         return full_rates
 
-def synthesis(conc_a,conc_b,rate_abx): # A + B -> C, INPUTS: conc_a = isotopologue abundances of Reactant A, conc_b = isotologue abundances of Reactant B, rate_abx = full rates array
+def synthesis(conc_a,conc_b,rate_abx): # A + B -> C, INPUTS: conc_a = isotopologue abundances of Reactant A, conc_b = isotologue abundances of Reactant B, rate_abx = full rates array (size = 1 x 2^(nC_A + nC_B)) OUTPUTS: created_x = isotopologue vector of product,
     ma = len(conc_a)
     iC=int(np.log2(ma))
     mb = len(conc_b)
-    conc_a_expanded = np.repeat(conc_a,mb)
-    conc_b_expanded = np.tile(conc_b,ma)#no need to be normalized
-    created_x = conc_a_expanded*conc_b_expanded*rate_abx
-    reacted_a, reacted_b=breakdown(created_x,iC)
+    conc_a_expanded = np.repeat(conc_a,mb) #expand concentration array of Reactant A
+    conc_b_expanded = np.tile(conc_b,ma) #expand concentration array of Reactant A
+    created_x = conc_a_expanded*conc_b_expanded*rate_abx #run reaction to calculate amount of product made
+    reacted_a, reacted_b=breakdown(created_x,iC) #calculate amount of reactant A and B used in the reaction by running the breakdown function on the product
 
-    if np.any(np.isinf(created_x)):
-        breakpoint()
+#    if np.any(np.isinf(created_x)):
+ #       breakpoint()
     return (created_x, reacted_a, reacted_b)
 
-#arr_x is the reacted amount of x
-def breakdown(reacted_x, nC_a): #break the array x to array a and b
+
+def breakdown(reacted_x, nC_a): #INPUTS: array of isotopologues for a given reactant, nC_a = number of atoms in reactant A. Tells QIRN where to break the reactant in two. OUTPUTS: Calculated isotopologue arrays for creation of two products (created_a, created b)
     mx =len(reacted_x)
     ma=2**nC_a
     mb=round(mx/ma)
@@ -123,19 +123,7 @@ def breakdown(reacted_x, nC_a): #break the array x to array a and b
     reacted_x.shape =(ma*mb)
     return(created_a, created_b)
 
-def MapCchain(conc, old_ibit, new_ibit):
-    nm=len(conc)
-    nC=len(old_ibit)
-    new_conc=zeros(nm)
-    for im in range(nm):
-        new_im=0
-        for iC in range (nC):
-            new_im+=((im>>old_ibit[iC]) & 1)<<new_ibit[iC]
-        new_conc[new_im]=conc[im]
-        #print (im, new_im)   
-    return new_conc
-
-def MapCchain_index(old_ibit, new_ibit):
+def MapCchain_index(old_ibit, new_ibit): #This function creates a vector that tells QIRN how to rearrange the atomic positions of a molecule while retaining mass balance of 13C and 12C. INPUTS: old_ibit = reference barcode for the molecule [nC -1 -> 0], new_ibit = barcode telling QIRN how to rearrange the atomic positions. OUTPUTS: new_index = an array of integers where each integer represents the index of the array of isotopologues representing the transformed molecule.
     #nm=len(conc)
     nC=len(old_ibit)
     nm=2**nC;
@@ -151,7 +139,7 @@ def MapCchain_index(old_ibit, new_ibit):
     #new_conc=conc[new_index]
     return new_index
 
-def GetTotalRatio(nC, conc_x): #get a compound's total_C13/total_C12
+def GetTotalRatio(nC, conc_x): #get a compound-specific isotope ratio INPUT: nC = number of atoms in the molecule, conc_x = isotopologue array for that molecule
     nm=2**nC
     n_C13=zeros(nm)
     n_C12=zeros(nm)
@@ -171,7 +159,7 @@ def GetTotalRatio(nC, conc_x): #get a compound's total_C13/total_C12
 if __name__=="__main__":
     print('util')
     
-def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
+def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt): #Main function for running the numerical QIRN model
     import os
     import sys
     import numpy as np
@@ -182,18 +170,17 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
 
 
     intmed={} #a dictionary
-    metanetwork = {} #a dictionary
-    substrates = []
-    flux_tracker ={}
-    reactions = []
-    reservoirs = []
-    EClist = []
+    metanetwork = {} #a dictionary that collates all the relevant information from the NB, RD and IntMedDatabase to construct the user-defined network
+    substrates = [] #list of substrates used in the network
+    reactions = [] #list of reactions based on their reaction names from RD
+    reservoirs = [] #list of molecules that are treated as reservoirs and do not change concentration or isotope composition in time
+    EClist = [] #list of enzymes based on their Reaction ID's from the RD and NB
 
-
-    with open(intermediates,newline='') as imfile:
+#SETTING INITIAL CONDITIONS
+    with open(intermediates,newline='') as imfile: #open IntMedDatabase
         imreader = csv.reader(imfile)
         next(imreader)  #get rid of the first row
-        for row in imreader:
+        for row in imreader: #populate isotopologue arrays for the initial concentrations and isotope compositions of the intermediates.
             name=row[0].strip()
             initial=float(row[2])
             reservoir = row[4]
@@ -211,26 +198,26 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
                 conc=np.zeros(2**nC)
                 conc_init = np.zeros(2**nC)
             intmed[name]=[nC,initial,conc,np.zeros(2**nC),conc_init,reservoir]
-            if intmed[name][4][0] >0 and intmed[name][5]!='':
+            if intmed[name][4][0] >0 and intmed[name][5]!='': #create list of reservoir substrates
                 reservoirs.append(name)
 
 
-
-    with open(networkbuilder, newline='') as networkfile:
+#POPULATING METANETWORK AND CONSTRUCTING USER-DEFINED NETWORK
+    with open(networkbuilder, newline='') as networkfile: #open NB
             networkreader = csv.reader(networkfile)
             next(networkreader)
 
-            for row in networkreader:
-                kf = row[1]
-                kr = row[2]
+            for row in networkreader: #Populate metanetwork dictionary using Reaction ID (EC number, etc.) as the key. Loop through NB to do this for every reaction in the in network.
+                kf = row[1] #forward reaction rate
+                kr = row[2] #reverse reaction rate
                 EC = row[0].strip()
                 metanetwork[EC] = [kf, kr]
                 metanetwork[EC][2:10] = np.zeros((7,),dtype=int)
                 metanetwork[EC][5:6] = [kf,kr]
-                EClist.append(EC)
+                EClist.append(EC) #create list of reactions based on Reaction ID
 
 
-    with open(reactiondatabase, newline='') as reactiondatabasefile:
+    with open(reactiondatabase, newline='') as reactiondatabasefile: #Open RD and populate metanetwork rows with the reactant and product names for each reaction, as well as any necessary MapChain arrays to rearrange molecules during reactions.
         databasereader = csv.reader(reactiondatabasefile)
         next(databasereader)
         for row in databasereader:
@@ -246,13 +233,13 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
             productD = row[5]
             reaction = row[1]
 
-            if len(row[8])>0:
-                old_ibit=[int(i) for i in row[8].split(',')]
+            if len(row[8])>0: #test whether a reaction requires molecular rearrangemennt
+                old_ibit=[int(i) for i in row[8].split(',')] #get old and new ibits from the RD, these are always the same for a given reaction.
                 newf_ibit=[int(i) for i in row[6].split(',')]
                 newr_ibit=[int(i) for i in row[7].split(',')]
-                findex = MapCchain_index(old_ibit,newf_ibit)
-                rindex = MapCchain_index(old_ibit,newr_ibit)
-                metanetwork[EC][2:5] = [reactantA, reactantB, productC, productD]
+                findex = MapCchain_index(old_ibit,newf_ibit) #create rearrangement array for the forward reaction
+                rindex = MapCchain_index(old_ibit,newr_ibit) #create rearrangement array for the reverse reaction
+                metanetwork[EC][2:5] = [reactantA, reactantB, productC, productD] #populate metanetwork with Reactant A, B and Product C, D (strings)
                 metanetwork[EC][8] = findex
                 metanetwork[EC][9] = rindex
                 metanetwork[EC][10] = reaction
@@ -263,12 +250,7 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
                 #print(reaction)
   
 
- #   e = 0
-  #  for row in EClist:
-   #     metanetwork[row][0] = str(optval_f[e])
-    #    metanetwork[row][1] = str(optval_r[e])
-     #   e +=1
-        ##CONVERT MASS ACTION RATE LAWS TO VECTORS WITH ASSOCIATED ISOTOPE EFFECTS APPLIED
+##CONVERT MASS ACTION RATE LAWS TO VECTORS WITH ASSOCIATED ISOTOPE EFFECTS APPLIED
     
     sub = []
     with open(intermediates, newline='') as imfile:
@@ -289,9 +271,9 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
         for row in networkreader:
             try:
                 x = metanetwork[row[0]][10]
-            except IndexError:
+            except IndexError:#check whether reactions in NB match reactions in the RD
                 print('Looks like this reaction does not match anything in the database: ', row[0])
-                sys.exit()
+                #sys.exit()
             EC = row[0]
             ir = metanetwork[EC]
             reactions.append(ir[10])
@@ -300,7 +282,7 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
             nC=intmed[ir[2]][0]
             if len(ir[3])>0:
                 nC+=intmed[ir[3]][0]
-            if len(row[3]) > 0:
+            if len(row[3]) > 0: #convert site specific alpha values for the forward reaction from the NB into an array of rate constants (size = 1 x 2^N+1 where N is the number of carbon positions)
                 k_for = np.repeat(ir[0], nC+1)
                 k_for_Csites=[int(i) for i in row[3].split(',')]
                 k_for_KIEs=[float(i) for i in row[4].split(',')]
@@ -318,7 +300,7 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
             else:
                 k_for=[float(i) for i in ir[0].split(',')]
 
-            if len(row[5]) > 0:
+            if len(row[5]) > 0: #convert site specific alpha values for the reverse reaction from the NB into an array of rate constants (size = 1 x 2^N+1 where N is the number of carbon positions)
                 k_rev = np.repeat(ir[1], nC+1)
                 k_rev_Csites=[int(i) for i in row[5].split(',')]
                 k_rev_KIEs=[float(i) for i in row[6].split(',')]
@@ -334,28 +316,24 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
             else:
                 k_rev=[float(i) for i in ir[1].split(',')]
 
-            #if len(row[3])==0:
-               # k_for=[float(i) for i in ir[0].split(',')]
-               # k_rev=[float(i) for i in ir[1].split(',')]
-                
-            metanetwork[EC][0]=GetFullRates(nC,k_for)*dt
+            metanetwork[EC][0]=GetFullRates(nC,k_for)*dt #populate
             metanetwork[EC][1]=GetFullRates(nC,k_rev)*dt
 
-    PK_equilibration = 0
-    isocitr_channel=2  #1 means Alex's C4 channel, 2 means Purdue's C2 channel, 0 means both channel
+    PK_equilibration = 0 #deciding whether to equilibrate phosphoenolpyruvate and pyruate (for use in glycolytic metabolisms)
+    isocitr_channel=2  # Symmetry toggle for the actonitase reaction (citrate -> isocitrate) 1 = C4 channel receives hydroxyl group, 2 = Purdue's C2 site receives hydroxyl group, 0 = both C2 and C4 receive hydroxyl group (split in half)
     #breakpoint()
 
 
     t =time #total reaction time in second
-    skip = 50
+    skip = 50 #cadence for bookkeeping of the reaction fluxes and concentrations. Raising this value will make the time steps run faster but lose resolution on the changes in flux, concentration and isotope composition with time. This does NOT impact the number of time steps run. Only the size of the dictionaries that keep track of the network's parameters in time.
     MProportions = np.zeros((12,len(substrates)))
-    t_steps=int(t/dt)
+    t_steps=int(t/dt) #number of timesteps to take
     
-    concentration_tracker = np.zeros((len(substrates),int(t_steps/skip)+1))
-    isotope_tracker = np.zeros((len(substrates),int(t_steps/skip)+1))
-    flux_tracker = np.zeros((len(reactions),int(t_steps/skip)+1))
+    concentration_tracker = np.zeros((len(substrates),int(t_steps/skip)+1)) #an array which holds the total concentration for every molecule (sum of all isotopologues) in the NB through time. Time points only taken at a certain cadence set by the variable 'skip'
+    isotope_tracker = np.zeros((len(substrates),int(t_steps/skip)+1)) #an array which holds the compound-specific isotope composition for every molecule in the NB through time. Time points only taken at a certain cadence set by the variable 'skip'
+    flux_tracker = np.zeros((len(reactions),int(t_steps/skip)+1)) #an array which holds the net (forward - reverse) fluxes for every reaction in the NB through time. Time points only taken at a certain cadence set by the variable 'skip'
     
-    with open(networkbuilder, newline='') as networkfile:
+    with open(networkbuilder, newline='') as networkfile: #create list of reactions from reaction ID's because this was lost in previous portion of the code.
         networkreader = csv.reader(networkfile)
         next(networkreader)
         i = 0
@@ -364,8 +342,7 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
             EC_list[i] = row[0]
             i = i + 1
 
-        
-    ##WHERE BOX MODEL BEGINS
+##WHERE BOX MODEL BEGINS
     for it in tqdm(range(t_steps+1)):
         it_check = it/skip
         m = 0
@@ -410,7 +387,6 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
                 nC_C = intmed[ir[4]][0]
 
                 createdC,createdD=breakdown(reactedA,nC_C)
-
                 createdA,reactedC,reactedD=synthesis(intmed[ir[4]][2],intmed[ir[5]][2],ir[1])#reverse
                 
                 
@@ -430,9 +406,9 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt):
         # Synthesis reaction  A+B->C
             elif ir[3]!='' and ir[5]=='':
                 createdC,reactedA,reactedB=synthesis(intmed[ir[2]][2],intmed[ir[3]][2],ir[0])#forward
-
+                
                 reactedC = intmed[ir[4]][2]*ir[1]
-                createdA,createdB=breakdown(reactedC,intmed[ir[2]][0])
+                createdA,createdB=breakdown(reactedC,intmed[ir[2]][0]) #reverse
 
                 if ir[4]=='citrate': #acecoa+oxaace->citrate
                     createdC = createdC[ir[8]]
