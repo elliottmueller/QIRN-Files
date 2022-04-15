@@ -1,5 +1,4 @@
-#Fenfang Wu, GPS Caltech, 2020
-#!env python3
+#Elliott Mueller, GPS Caltech, 2022
 import numpy as np
 from numpy import *
 from tqdm import tqdm
@@ -605,12 +604,6 @@ def fluxinvert(intermediates,networkbuilder,reactiondatabase, time, dt):
         Kconst_r = Kconst[int(len(Kconst)/2)::]
         Kconst = Kconst[0:int(len(Kconst)/2)]
 
-        #flux_1 = K[-1,1]*Kconst_r[0]
-        #flux_2 = K[-1,3]*K[-1,4]*Kconst_r[1]
-        #flux_3 = K[-1,5]*1*Kconst[2]
-        #flux_6 = K[-1,4]*K[-1,12]*Kconst_r[5]
-        #flux_7 = K[-1,4]*K[-1,14]*Kconst_r[6]
-        #flux_8 = K[-1,5] *Kconst[11]
 
         for j in range(len(substrates)):
             for i in range(len(EClist)):
@@ -659,10 +652,10 @@ def fluxinvert(intermediates,networkbuilder,reactiondatabase, time, dt):
                     past_rev_flux[i] = (K[-100,j]**2)*Kconst_r[i]
                     
                     
-            if rev_flux[i] > 1e-5 and flux[i] > 1e-5:
-                reversibility[i] = rev_flux[i]/flux[i]
-                if reversibility[i] > 1e3:
-                    reversibility[i] = 0
+                if rev_flux[i] > 1e-5 and flux[i] > 1e-5:
+                    reversibility[i] = rev_flux[i]/flux[i]
+                    if reversibility[i] > 1e3:
+                        reversibility[i] = 0
 
 
         print('')
@@ -682,8 +675,10 @@ def fluxinvert(intermediates,networkbuilder,reactiondatabase, time, dt):
                 past_flux[i] = 1
             if float(reversibility[i]) == 0:
                 reversibility[i] = 1
+                print(i,' HERE')
             if float(requestedreversibility[i]) == 0:
                 requestedreversibility[i] = 1
+    
 
 
         print('')
@@ -695,13 +690,13 @@ def fluxinvert(intermediates,networkbuilder,reactiondatabase, time, dt):
         print(reversibility)
         print(requestedreversibility)
        # breakpoint()
-        residual = sum(((flux)/(requestedflux)-1)**2)**0.5 + sum(((rev_flux)/(rev_requestedflux)-1)**2)**0.5 + sum(((reversibility)/(requestedreversibility)-1)**2)**0.5 + 0.5*sum(((flux)/(past_flux)-1)**2)**0.5 + 0.5*sum(((rev_flux)/(past_rev_flux)-1)**2)**0.5
+        residual = sum(((flux)/(requestedflux)-1)**2)**0.5 + sum(((rev_flux)/(rev_requestedflux)-1)**2)**0.5 +  + 0.5*sum(((flux)/(past_flux)-1)**2)**0.5 + 0.5*sum(((rev_flux)/(past_rev_flux)-1)**2)**0.5 + sum(((reversibility)/(requestedreversibility)-1)**2)**0.5
         return residual
     
     
     bnd = (0,1)
     bnds = ((bnd,)*len(kindex))
-    minimum = optimize.minimize(f,Kconst,method='SLSQP', bounds = bnds, tol = 1e-2)
+    minimum = optimize.minimize(f,Kconst,method='SLSQP', bounds = bnds, tol = 1e-6)
 
     
 
