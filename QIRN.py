@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 ratio_VPDB=0.01118 #reference ratio
 ratio_naturalC = ratio_VPDB
-abun_C13_natural=ratio_naturalC/(ratio_naturalC+1)  # C13% over total
+abun_C13_natural=ratio_naturalC/(ratio_naturalC+1)  # fractional abundance of rare isotope (here 13C, but can be any isotope) 
 abun_C12_natural=1-abun_C13_natural
 
 def GetProp(conc):  #INPUTS: isotopologue abundances for a given molecule OUTPUTS: Array of labelling proportions M, M+1, M+2, etc. where M is the molecular weight. Size = (1 x number of atoms + 1)
