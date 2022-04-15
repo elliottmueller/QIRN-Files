@@ -197,7 +197,7 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt): #Main functio
             else:
                 conc=np.zeros(2**nC)
                 conc_init = np.zeros(2**nC)
-            intmed[name]=[nC,initial,conc,np.zeros(2**nC),conc_init,reservoir]
+            intmed[name]=[nC,initial,conc,np.zeros(2**nC),conc_init,reservoir] #intmed is a dictionary that keeps track of changes in concentration of every isotopologue in the network. Each row is a molecule. nC = number of atoms, initial = initial concentration set by in the IntMedDB, conc = integrate isotopologue abundance array, fourth index = instantaneous change of the molecule after all the reactions of a timestep have run (this can be + or -), conc_init = the initial isotopologue abundance array, reservoir = if on, put this molecule in the reservoir list.
             if intmed[name][4][0] >0 and intmed[name][5]!='': #create list of reservoir substrates
                 reservoirs.append(name)
 
@@ -319,7 +319,6 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt): #Main functio
             metanetwork[EC][0]=GetFullRates(nC,k_for)*dt #populate
             metanetwork[EC][1]=GetFullRates(nC,k_rev)*dt
 
-    PK_equilibration = 0 #deciding whether to equilibrate phosphoenolpyruvate and pyruate (for use in glycolytic metabolisms)
     isocitr_channel=2  # Symmetry toggle for the actonitase reaction (citrate -> isocitrate) 1 = C4 channel receives hydroxyl group, 2 = Purdue's C2 site receives hydroxyl group, 0 = both C2 and C4 receive hydroxyl group (split in half)
     #breakpoint()
 
@@ -344,45 +343,40 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt): #Main functio
 
 ##WHERE BOX MODEL BEGINS
     for it in tqdm(range(t_steps+1)):
-        it_check = it/skip
+        it_check = it/skip #checks whether it is a time step for which it needs to record parameters
         m = 0
-        for row in EC_list:
+        for row in EC_list: #loops through each row of the metanetwork (represents a reaction)
             ir = metanetwork[EC_list[row]]
         # Reaction A -> C
-            if ir[3]==''and ir[5]=='':
+            if ir[3]==''and ir[5]=='': #Is it a simple transformation?
                 reactedA=intmed[ir[2]][2]*ir[0] #forward
                 createdC=reactedA
                 reactedC=intmed[ir[4]][2]*ir[1]#reverse
                 createdA=reactedC
-                #print(ir[8])
                 
-                #breakpoint()
                 if ir[8].size>1 and ir[9].size>1:  #does this need to be remapped?
                     createdC = reactedA[ir[8]]
                     createdA = reactedC[ir[9]]
-                if ir[2]=='citrate': #citrate -> isocitrate
+                if ir[2]=='citrate': #citrate -> isocitrate symmetry
                     if isocitr_channel==0: #two positions to add OH
-                        createdC4 = 0.5*reactedA #Alex's isocitrate C4-OH
+                        createdC4 = 0.5*reactedA #isocitrate C4-OH
                         createdC2 = createdC4[ir[8]]
                         createdC=createdC2+createdC4
-                        
-                    elif isocitr_channel==2: #C2 for adding OH
+                    elif isocitr_channel==2: #isocitrate C2-OH
                         createdC = reactedA[ir[8]]
-
-
-                if ir[2]=='fumarate': #fumarate->malate
+                if ir[2]=='fumarate': #fumarate->malate symmetry
                     createdC2 = 0.5*reactedA
                     createdC3 = createdC2[ir[8]]
                     createdC=createdC2+createdC3
 
-                intmed[ir[2]][3]+=createdA - reactedA
+                intmed[ir[2]][3]+=createdA - reactedA #calculate change in concentration for Reactant A and Product C and add it to the instantaneous change index in the 'intmed' dictionary
                 intmed[ir[4]][3]+=createdC - reactedC
                 if it_check.is_integer():
-                    flux_tracker[m][int(it_check)] = sum(reactedA)-sum(createdA)
+                    flux_tracker[m][int(it_check)] = sum(reactedA)-sum(createdA) #flux calculation based on the change in the total concentration of reactant A (sum of isotopologues).
 
 
         # Breakdown reaction  A->C+D
-            elif ir[3]=='' and ir[5]!='':
+            elif ir[3]=='' and ir[5]!='': #is it a breakdown function?
                 reactedA=intmed[ir[2]][2]*ir[0] #forward
                 nC_C = intmed[ir[4]][0]
 
@@ -395,11 +389,11 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt): #Main functio
                     createdC,createdD=breakdown(reactedM,nC_C)
                     createdA = createdA[ir[9]]
 
-                intmed[ir[2]][3] +=createdA - reactedA
+                intmed[ir[2]][3] +=createdA - reactedA #calculate change in concentration for Reactant A Product C and Product D and add it to the instantaneous change index in the 'intmed' dictionary
                 intmed[ir[4]][3] +=createdC - reactedC
                 intmed[ir[5]][3] +=createdD - reactedD
                 if it_check.is_integer():
-                    flux_tracker[m][int(it_check)] = sum(reactedA)-sum(createdA)
+                    flux_tracker[m][int(it_check)] = sum(reactedA)-sum(createdA)  #flux calculation based on the change in the total concentration of reactant A (sum of isotopologues).
 
 
 
@@ -419,52 +413,54 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt): #Main functio
                     reactedM = reactedC[ir[9]]
                     createdA,createdB=breakdown(reactedM,intmed[ir[2]][0])
 
-                intmed[ir[2]][3] +=createdA -reactedA
+                intmed[ir[2]][3] +=createdA -reactedA #calculate change in concentration for Reactant A Reactant B and Product C and add it to the instantaneous change index in the 'intmed'
                 intmed[ir[3]][3] +=createdB - reactedB
                 intmed[ir[4]][3] +=createdC - reactedC
-                if it_check.is_integer():
-                    flux_tracker[m][int(it_check)] = sum(reactedA)-sum(createdA)
+                if it_check.is_integer(): #check if it is a time step where you need to record.
+                    flux_tracker[m][int(it_check)] = sum(reactedA)-sum(createdA) #flux calculation based on the change in the total concentration of reactant A (sum of isotopologues).
                 
-                if ir[2] == ir[3]:
-                    flux_tracker[m][it] *=2
+                    if ir[2] == ir[3]: #check the stoichiometry of the reaction. If two of the same molecule are condensed, the flux is twice as high for that molecule but the product creation flux is half that. (only the reaction consumption flux is reported in the flux_tracker array)
+                        flux_tracker[m][int(it_check)] *=2
 
         # A + B --> C + D
             elif ir[2]!='' and ir[5]!='':
-                createdM, reactedA,reactedB = synthesis(intmed[ir[2]][2],intmed[ir[3]][2],ir[0]) #make intermediate M
-                rev_createdM,reactedC,reactedD = synthesis(intmed[ir[4]][2],intmed[ir[5]][2],ir[1]) #reverse reaction
+                createdM, reactedA,reactedB = synthesis(intmed[ir[2]][2],intmed[ir[3]][2],ir[0]) #make intermediate M by synthesis function on A and B
+                rev_createdM,reactedC,reactedD = synthesis(intmed[ir[4]][2],intmed[ir[5]][2],ir[1]) #make intermediate M for the reverse reaction by synthesis function on C and D
                 #breakpoint()
                 if ir[8].size>1 and ir[9].size>1:    #does this need to be remapped?
-                    createdM = createdM[ir[8]]
-                    rev_createdM = rev_createdM[ir[9]]
+                    createdM = createdM[ir[8]] #remap the intermediate using the index transformation array in the metanetwork
+                    rev_createdM = rev_createdM[ir[9]] #remap the intermediate using the index transformation array in the metanetwork
 
-                elif ir[5] == 'co2_als':
+                elif ir[5] == 'co2_als': #special case for the reaction pyruvate + pyruvate -> acetolactate + CO2 (april 2022, EPM)
                     createdM = createdM[pyr_pyr_index]*0.5
                     rev_createdM = rev_createdM[pyr_pyr_index]
 
-                nC_C=intmed[ir[4]][0]
+                nC_C=intmed[ir[4]][0] #figure out how big the Product C and Product D are for the forward reaction and break the intermediate at this atomic site to create the final products.
                 createdC,createdD=breakdown(createdM,nC_C)
                 nC_A=intmed[ir[2]][0]
-                createdA,createdB = breakdown(rev_createdM,nC_A)
+                createdA,createdB = breakdown(rev_createdM,nC_A) #figure out how big the Reactant A and Reactant B are for the reverse reaction and break the intermediate at this atomic site to create the final products.
 
-                intmed[ir[2]][3] +=createdA - reactedA
+                intmed[ir[2]][3] +=createdA - reactedA #calculate change in concentration for Reactant A Reactant B, Product C, and Product D and add it to the instantaneous change index in the 'intmed'
                 intmed[ir[3]][3] +=createdB - reactedB
                 intmed[ir[4]][3] +=createdC - reactedC
                 intmed[ir[5]][3] +=createdD - reactedD
                 if it_check.is_integer():
                     flux_tracker[m][int(it_check)] = sum(reactedA)-sum(createdA)
                 
-                if ir[2] == ir[3] and it_check.is_integer():
-                    flux_tracker[m][int(it_check)] *=2
+                    if ir[2] == ir[3]: #check the stoichiometry of the reaction. If two of the same molecule are condensed, the flux is twice as high for that molecule but the product creation flux is half that. (only the reaction consumption flux is reported in the flux_tracker array)
+                        flux_tracker[m][int(it_check)] *=2
                     
             m = m+1
     #changing concentration of intermediates
         i = 0
-       
-        for row in substrates:
-            if sum(intmed[row][2]) > 0 and it_check.is_integer():
-                concentration_tracker[i][int(it_check)]=sum(intmed[row][2])
-                isotope_track = GetTotalRatio(intmed[row][0],intmed[row][2])
-                isotope_tracker[i][int(it_check)] = GetDelta(isotope_track)
+        
+        if sum(intmed[row][2]) > 0 and it_check.is_integer(): #check whether substrates have a non-zero concentration and whether the time step is being recorded
+            for row in substrates:
+                concentration_tracker[i][int(it_check)]=sum(intmed[row][2]) #track concentration (sum of isotopologues)
+                isotope_track = GetTotalRatio(intmed[row][0],intmed[row][2]) #calculate compound-specific isotope ratio for each substrate
+                isotope_tracker[i][int(it_check)] = GetDelta(isotope_track) #track compound-specific delta value for each substrate
+        
+        for row in substrates: #at every timestep update integrated concentration and reset the instantaneous change in concentration to zero. Set reservoir molecules to their initial concentration and composition
             intmed[row][2] += intmed[row][3]
             intmed[row][3] = np.zeros(2**intmed[row][0])
             if row in reservoirs:
@@ -475,9 +471,6 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt): #Main functio
     #const supply of the following reagents
             
 
-        if PK_equilibration ==3:
-            intmed['pyruvate'][2][:] = (intmed['pyruvate'][2][:]+intmed['PEP'][2][:])/2
-            intmed['PEP'][2][:] = (intmed['pyruvate'][2][:]+intmed['PEP'][2][:])/2
 
         if it+2==t_steps:
             prev_intmed = deepcopy(intmed)
@@ -485,26 +478,19 @@ def QIRN(intermediates,networkbuilder,reactiondatabase, time, dt): #Main functio
         flux_tracked = {}
             
     for i in range(len(reactions)):
-        flux_tracked[reactions[i]] = flux_tracker[i][:]
+        flux_tracked[reactions[i]] = flux_tracker[i][:] #create array of fluxes to be used in the GUI for data visualization
     
     ## NETWORK DESCRIPTIONS:
     print('Number of reactions: ',len(EClist))     # Number of reactions
     print('Number of substrates: ',len(substrates)) # Number of substrates
     isotopologues = 0
+    
     for row in substrates:
-        isotopologues += 2**(intmed[row][0])
+        isotopologues += 2**(intmed[row][0]) #Number of isotopologues
     print('Number of isotopologues: ', isotopologues)
-    ## Print proportion of labelled substrates in 13C labelling simulations
-    #for i in substrates:
-       # M = GetProp(intmed[i][2])
-       # print(i)
-       # for j in np.arange(len(M)):
-            #print('M',j,': ', M[j])
-    return intmed, substrates, concentration_tracker, reactions, flux_tracker, metanetwork, EClist,flux_tracked, reservoirs, isotope_tracker, skip
-def emprint(compound,intmed):
+
+    return intmed, substrates, concentration_tracker, reactions, flux_tracker, metanetwork, EClist,flux_tracked, reservoirs, isotope_tracker, skip #return values to the GUI for data visualization
+
+def emprint(compound,intmed): #prints a compound's name followed by its site specific composition
     value = siteSpecific(compound, intmed[compound][0], intmed[compound][2])
     return value
-def prt3(str): # print out 3 effective digits
-    print(str,'={0:.3f}'.format(eval(str)))
-def prt10(str):
-    print(str,'={0:.10f}'.format(eval(str)))
