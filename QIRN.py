@@ -7,7 +7,7 @@ import pylab as py
 from scipy import integrate
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
-ratio_VPDB=0.01118  #C13/C12
+ratio_VPDB=0.01118 #reference ratio
 ratio_naturalC = ratio_VPDB
 abun_C13_natural=ratio_naturalC/(ratio_naturalC+1)  # C13% over total
 abun_C12_natural=1-abun_C13_natural
