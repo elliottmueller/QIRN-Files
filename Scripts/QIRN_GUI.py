@@ -1,8 +1,8 @@
 from tkinter import *
 from PIL import ImageTk,Image
 from tkinter import filedialog
-from Scripts import QIRN_20220218 as QIRNfile
-from Scripts import QIRN_20211105_fluxinversion as inversionfile
+from Scripts import QIRN as QIRNfile
+from Scripts import QIRN_fluxinversion as inversionfile
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -39,7 +39,7 @@ def runinversion():
         concentration_button.destroy()
         again_button.destroy()
     
-    filename = filedialog.askopenfilename(initialdir = "/Documents/QIRN/Photosynthesis", title = "Select Network File")
+    filename = filedialog.askopenfilename(initialdir = "/Documents", title = "Select Network File")
     TimeEntry = Entry(root)
     TimeEntry.grid(row = 2, column = 1,pady=5, columnspan = 3 )
     TimeEntry.insert(0,"Enter Model Time (sec):")
