@@ -24,6 +24,7 @@ def runinversion():
     global time_steps
     global concentration_tracker
     global filename
+    global intmedfile
     global time
     global TimeEntry
     global reactions
@@ -39,7 +40,6 @@ def runinversion():
         concentration_button.destroy()
         again_button.destroy()
     
-    filename = filedialog.askopenfilename(initialdir = "/Documents", title = "Select Network File")
     TimeEntry = Entry(root)
     TimeEntry.grid(row = 2, column = 1,pady=5, columnspan = 3 )
     TimeEntry.insert(0,"Enter Model Time (sec):")
@@ -48,8 +48,11 @@ def runinversion():
     runButton = Button(root,text="Invert Fluxes", command=invertfluxes)
     runButton.grid(row=3,column=0, pady=5)
 
+def get_ID():
+    global intmedfile
+    intmedfile = filedialog.askopenfilename(initialdir = "/Documents", title = "Select Network File")
 
-def runQIRN():
+def get_NB():
     global frame
     global my_img
     global intmed
@@ -67,6 +70,7 @@ def runQIRN():
     global isotope_time_button
     global again_button
     global runcounter
+    global intmedfile
     if runcounter > 0:
         flux_button.destroy()
         isotope_button.destroy()
@@ -75,13 +79,16 @@ def runQIRN():
         isotope_time_button.destroy()
     
     filename = filedialog.askopenfilename(initialdir = "/Documents/QIRN/Photosynthesis", title = "Select a Network File")
+
+    
+def runQIRN():
+    global TimeEntry
+    global runButton
     TimeEntry = Entry(root)
-    TimeEntry.grid(row = 2, column = 1,pady=5, columnspan=2)
+    TimeEntry.grid(row = 4, column = 1,pady=5, columnspan=2)
     TimeEntry.insert(0,"Enter Model Time (sec):")
-    
-    
     runButton = Button(root,text="Run Model", command=run)
-    runButton.grid(row=3,column=1, pady=5, columnspan =2)
+    runButton.grid(row=5,column=1, pady=5, columnspan =2)
 
 
 def invertfluxes():
@@ -114,7 +121,7 @@ def invertfluxes():
     global kf
     time = int(TimeEntry.get())
     dt = 0.1
-    kf, kr = inversionfile.fluxinvert("IntermediatesDatabase.csv",filename,"ReactionDatabase.csv",time,dt)
+    kf, kr = inversionfile.fluxinvert(intmedfile,filename,"ReactionDatabase.csv",time,dt)
     print(kf)
     print(kr)
     fluxcsveditor.fluxconvert(kf,kr,filename)
@@ -152,10 +159,19 @@ def run():
     global kf
     global isotope_tracker
     global skip
+    global errorlabel
 
     time = int(TimeEntry.get())
     dt = 0.1
-    intmed,substrates,concentration_tracker, reactions, flux_tracker, metanetwork, EClist,fluxtracking, reservoirs, isotope_tracker,skip = QIRNfile.QIRN("IntermediatesDatabase.csv",filename,"ReactionDatabase.csv",time,dt)
+
+        #if errorlabel in locals():
+           # errorlabel.destroy()
+    try:
+        intmed,substrates,concentration_tracker, reactions, flux_tracker, metanetwork, EClist,fluxtracking, reservoirs, isotope_tracker,skip=QIRNfile.QIRN(intmedfile,filename,"ReactionDatabase.csv",time,dt)
+    except ValueError:
+        errorlabel = Label(root, text = 'You are missing an Intermediates Database or a Network Builder file!')
+        errorlabel.grid(row = 6, column = 1, columnspan = 2, padx =5)
+   
     time_steps = int(time/dt)
     fluxbutton_photo = Image.open('GUI_Illustrations/reaction.png')
     fluxbutton_photo = fluxbutton_photo.resize((200,35), Image.Resampling.LANCZOS)
@@ -173,25 +189,26 @@ def run():
     isotopeTIMEbutton_photo = ImageTk.PhotoImage(isotopeTIMEbutton_photo)
     
     
-    isotope_button = Button(root, image = isotopebutton_photo, command = lambda: open('isotopes'),borderwidth=0,bg='white',highlightthickness=0,bd=0)
-    isotope_button.grid(row=3,column=2)
+    isotope_button = Button(root, image = isotopebutton_photo, command = lambda: open('isotopes'),highlightthickness=0,bd=0)
+    isotope_button.grid(padx = 5, row=3,column=2)
     
-    isotope_time_button = Button(root, image = isotopeTIMEbutton_photo, command = lambda: open('isotope_time'),borderwidth=0,bg='white',highlightthickness=0,bd=0)
-    isotope_time_button.grid(row=3,column=3)
+    isotope_time_button = Button(root, image = isotopeTIMEbutton_photo, command = lambda: open('isotope_time'),highlightthickness=0,bd=0)
+    isotope_time_button.grid(padx = 5, row=3,column=3)
    
-    flux_button = Button(root, image = fluxbutton_photo, command = lambda: open('fluxes'),borderwidth=0,bg='white',highlightthickness=0,bd=0)
-    flux_button.grid(row=3,column=1)
+    flux_button = Button(root, image = fluxbutton_photo, command = lambda: open('fluxes'),highlightthickness=0,bd=0)
+    flux_button.grid(padx = 5, row=3,column=1)
     
-    concentration_button = Button(root, image = concbutton_photo, command = lambda: open('concentrations'),borderwidth=0,bg='white',highlightthickness=0,bd=0)
-    concentration_button.grid(row=3,column=0)
+    concentration_button = Button(root, image = concbutton_photo, command = lambda: open('concentrations'),highlightthickness=0,bd=0)
+    concentration_button.grid(padx= 5,row=3,column=0)
     
     again_button = Button(root, text = "Run Again", command = runagain)
-    again_button.grid(row=4,column=1, pady=5, columnspan =2)
+    again_button.grid(row=5,column=1, pady=5, columnspan =2)
 
     runButton.destroy()
 
 def runagain():
     global filename
+    global intmedfile
     global frame
     global my_img
     global intmed
@@ -223,6 +240,7 @@ def runagain():
     global kf
     global kr
     global isotope_tracker
+    global errorlabel
     
     flux_button.destroy()
     runButton.destroy()
@@ -231,7 +249,16 @@ def runagain():
     isotope_time_button.destroy()
     time = int(TimeEntry.get())
     dt = 0.1
-    intmed,substrates,concentration_tracker, reactions, flux_tracker, metanetwork, EClist,fluxtracking, reservoirs, isotope_tracker,skip = QIRNfile.QIRN("IntermediatesDatabase.csv",filename,"ReactionDatabase.csv",time,dt)
+    
+    try:
+        intmed,substrates,concentration_tracker, reactions, flux_tracker, metanetwork, EClist,fluxtracking, reservoirs, isotope_tracker,skip=QIRNfile.QIRN(intmedfile,filename,"ReactionDatabase.csv",time,dt)
+        if errorlabel.winfo_exists():
+            errorlabel.destroy()
+    except NameError:
+        errorlabel = Label(root, text = 'You are missing an Intermediates Database or a Network Builder file!')
+        errorlabel.grid(row = 6, column = 1, columnspan = 2, padx =5)
+        
+
     time_steps = int(time/dt)
 
     isotope_button = Button(root, image = isotopebutton_photo, command = lambda: open('isotopes'))
@@ -545,19 +572,31 @@ logo = Image.open('GUI_Illustrations/QIRN.png')
 logo = logo.resize((700,575), Image.Resampling.LANCZOS)
 my_img = ImageTk.PhotoImage(logo)
 logo = Label(root, image = my_img,bg='white').grid(row=0,column=0,columnspan=4)
-button_photo = Image.open('GUI_Illustrations/submitbutton3.png')
-button_photo = button_photo.resize((220,35), Image.Resampling.LANCZOS)
+button_photo = Image.open('GUI_Illustrations/networkbuilder.png')
+button_photo = button_photo.resize((240,35), Image.Resampling.LANCZOS)
 button_photo = ImageTk.PhotoImage(button_photo)
+intmed_photo = Image.open('GUI_Illustrations/intermedatabase.png')
+intmed_photo = intmed_photo.resize((240,35), Image.Resampling.LANCZOS)
+intmed_photo = ImageTk.PhotoImage(intmed_photo)
 ConvertButton = Image.open('GUI_Illustrations/ConvertButton.png')
 ConvertButton = ConvertButton.resize((240,34), Image.Resampling.LANCZOS)
 ConvertButton = ImageTk.PhotoImage(ConvertButton)
+ModelButton = Image.open('GUI_Illustrations/forwardmodel.png')
+ModelButton = ModelButton.resize((240,34), Image.Resampling.LANCZOS)
+ModelButton = ImageTk.PhotoImage(ModelButton)
 
-submit_button = Button(root, image = button_photo, command = runQIRN,borderwidth=0,bg='white',highlightthickness=0,bd=0)
-submit_button.grid(row = 1, column=2, padx = 0, pady=10,columnspan=1)
+intmed_button = Button(root, image = intmed_photo, command = get_ID,borderwidth=0,bg='white',highlightthickness=0,bd=0)
+intmed_button.grid(row = 1, column=2, padx = 0, pady=10,columnspan=2)
+submit_button = Button(root, image = button_photo, command = get_NB,borderwidth=0,bg='white',highlightthickness=0,bd=0)
+submit_button.grid(row = 1, column=0, padx = 0, pady=10,columnspan=2)
 
 inversion_button = Button(root, image = ConvertButton, command = runinversion,borderwidth=0,bg='white',highlightthickness=0,bd=0)
-inversion_button.grid(row = 1, column=1, padx = 0, pady=10,columnspan=1)
+inversion_button.grid(row = 2, column=0, padx = 0, pady=10,columnspan=2)
+model_button = Button(root, image = ModelButton, command = runQIRN,borderwidth=0,bg='white',highlightthickness=0,bd=0)
+model_button.grid(row = 2, column=2, padx = 0, pady=10,columnspan=2)
+
 root.mainloop()
+
 
 
 
