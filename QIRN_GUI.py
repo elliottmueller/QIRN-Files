@@ -159,19 +159,12 @@ def run():
     global kf
     global isotope_tracker
     global skip
-    global errorlabel
 
     time = int(TimeEntry.get())
     dt = 0.1
 
-        #if errorlabel in locals():
-           # errorlabel.destroy()
-    try:
-        intmed,substrates,concentration_tracker, reactions, flux_tracker, metanetwork, EClist,fluxtracking, reservoirs, isotope_tracker,skip=QIRNfile.QIRN(intmedfile,filename,"ReactionDatabase.csv",time,dt)
-    except ValueError:
-        errorlabel = Label(root, text = 'You are missing an Intermediates Database or a Network Builder file!')
-        errorlabel.grid(row = 6, column = 1, columnspan = 2, padx =5)
-   
+    intmed,substrates,concentration_tracker, reactions, flux_tracker, metanetwork, EClist,fluxtracking, reservoirs, isotope_tracker,skip=QIRNfile.QIRN(intmedfile,filename,"ReactionDatabase.csv",time,dt)
+
     time_steps = int(time/dt)
     fluxbutton_photo = Image.open('GUI_Illustrations/reaction.png')
     fluxbutton_photo = fluxbutton_photo.resize((200,35), Image.Resampling.LANCZOS)
@@ -240,7 +233,6 @@ def runagain():
     global kf
     global kr
     global isotope_tracker
-    global errorlabel
     
     flux_button.destroy()
     runButton.destroy()
@@ -250,13 +242,10 @@ def runagain():
     time = int(TimeEntry.get())
     dt = 0.1
     
-    try:
-        intmed,substrates,concentration_tracker, reactions, flux_tracker, metanetwork, EClist,fluxtracking, reservoirs, isotope_tracker,skip=QIRNfile.QIRN(intmedfile,filename,"ReactionDatabase.csv",time,dt)
-        if errorlabel.winfo_exists():
-            errorlabel.destroy()
-    except NameError:
-        errorlabel = Label(root, text = 'You are missing an Intermediates Database or a Network Builder file!')
-        errorlabel.grid(row = 6, column = 1, columnspan = 2, padx =5)
+
+    intmed,substrates,concentration_tracker, reactions, flux_tracker, metanetwork, EClist,fluxtracking, reservoirs, isotope_tracker,skip=QIRNfile.QIRN(intmedfile,filename,"ReactionDatabase.csv",time,dt)
+
+
         
 
     time_steps = int(time/dt)
