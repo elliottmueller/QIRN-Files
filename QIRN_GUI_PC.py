@@ -1,8 +1,8 @@
 from tkinter import *
 from PIL import ImageTk,Image
 from tkinter import filedialog
-from Scripts import QIRN_20220218 as QIRNfile
-from Scripts import QIRN_20211105_fluxinversion as inversionfile
+from Scripts import QIRN as QIRNfile
+from Scripts import QIRN_fluxinversion as inversionfile
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
